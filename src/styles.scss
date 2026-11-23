@@ -332,3 +332,22 @@ button.link {
   summary { cursor: pointer; color: var(--muted); }
   .passivas-campos { display: flex; gap: 14px; flex-wrap: wrap; margin: 6px 0 4px; label { display: flex; align-items: center; gap: 6px; } }
 }
+
+// edição de fórmulas em lista retraída
+.formula {
+  .formula-head { margin-bottom: 0; align-items: center; }
+  &.aberta .formula-head { margin-bottom: 8px; }
+  > input.nome { font-weight: 600; margin-bottom: 8px; }
+}
+.formula-titulo {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  background: none; border: none; padding: 2px 4px; cursor: pointer; text-align: left;
+  position: relative; padding-left: 18px;
+  .seta { position: absolute; left: 2px; top: 2px; color: var(--gold); }
+  .formula-nome { font-weight: 600; font-size: .88rem; }
+  .formula-resumo {
+    max-width: 100%; color: var(--muted); font-size: .72rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  &:hover .formula-nome { color: var(--gold); }
+}

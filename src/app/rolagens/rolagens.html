@@ -64,13 +64,19 @@
   } @else {
     <div class="formulas">
       @for (f of rascunho; track $index; let i = $index) {
-        <div class="formula">
+        <div class="formula" [class.aberta]="f.aberto">
           <div class="formula-head">
-            <input class="nome" [(ngModel)]="f.nome" placeholder="Nome da rolagem" />
+            <button class="formula-titulo" (click)="alternar(f)" [attr.aria-expanded]="!!f.aberto">
+              <span class="seta">{{ f.aberto ? '▾' : '▸' }}</span>
+              <span class="formula-nome">{{ f.nome || 'Sem nome' }}</span>
+              @if (!f.aberto) { <code class="formula-resumo">{{ previa(f) || '—' }}</code> }
+            </button>
             <button class="btn small ghost" (click)="mover(i, -1)" title="Subir">↑</button>
             <button class="btn small ghost" (click)="mover(i, 1)" title="Descer">↓</button>
             <button class="btn small danger" (click)="remover(i)" title="Remover">✕</button>
           </div>
+          @if (f.aberto) {
+          <input class="nome" [(ngModel)]="f.nome" placeholder="Nome da rolagem" />
 
           @if (!f.manual) {
             @if (f.m.termos.length) {
@@ -131,6 +137,7 @@
             }
           </div>
           <button class="link" (click)="alternarManual(f)">{{ f.manual ? 'Voltar para o seletor' : 'Escrever a fórmula à mão' }}</button>
+          }
         </div>
       }
     </div>

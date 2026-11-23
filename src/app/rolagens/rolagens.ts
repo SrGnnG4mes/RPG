@@ -12,7 +12,7 @@ import { carga, formulaComPassivas, pctPassivas, rolagens, tokensComConfig } fro
 import { UiService } from '../core/ui.service';
 
 /** Item em edição: `manual` = escrita à mão; senão é montada pelo seletor em `m`. */
-interface Rascunho { nome: string; formula: string; orig?: string; manual: boolean; m: Montagem }
+interface Rascunho { nome: string; formula: string; orig?: string; manual: boolean; m: Montagem; aberto?: boolean }
 
 @Component({
   selector: 'app-rolagens',
@@ -91,9 +91,18 @@ export class RolagensComponent {
     this.editando.set(true);
   }
   adicionar(): void {
-    this.rascunho.push({ nome: 'Nova rolagem', formula: '', manual: false, m: montagemVazia() });
+    this.rascunho.forEach(f => (f.aberto = false));
+    this.rascunho.push({ nome: 'Nova rolagem', formula: '', manual: false, m: montagemVazia(), aberto: true });
   }
-  remover(i: number): void { this.rascunho.splice(i, 1); }
+  remover(i: number): void {
+    if (confirm(`Remover a rolagem "${this.rascunho[i].nome}"?`)) this.rascunho.splice(i, 1);
+  }
+  /** Abre uma rolagem para editar (fecha as outras, para a lista ficar curta). */
+  alternar(f: Rascunho): void {
+    const abrir = !f.aberto;
+    this.rascunho.forEach(x => (x.aberto = false));
+    f.aberto = abrir;
+  }
   mover(i: number, d: number): void {
     const j = i + d;
     if (j < 0 || j >= this.rascunho.length) return;
