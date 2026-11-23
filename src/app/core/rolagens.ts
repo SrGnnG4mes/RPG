@@ -2,9 +2,23 @@ import {
   Mochila, StatusSheet, Tokens, buildRoll, carryLimit, cleanRoll, itemWeight, norm, tokens, weaponRoll,
 } from './ficha-parser.service';
 import { aplicarPercentual, montarFormula } from './formula-builder';
-import { AppConfig, Formula } from './models';
+import { AppConfig, DEFAULT_FORMULAS, Formula } from './models';
 
-export interface Rolagem { chave: string; nome: string; cmd: string; arma?: boolean }
+export interface Rolagem { chave: string; nome: string; cmd: string; grupo: string; arma?: boolean }
+
+/** Ordem em que os grupos aparecem na lista. */
+export const GRUPOS = ['Precisão', 'Esquiva', 'Velocidade', 'Dano', 'Armas', 'Carisma', 'Minhas rolagens'];
+const GRUPO_TOKEN: Record<string, string> = {
+  prec_cc: 'Precisão', prec_la: 'Precisão', esq_cc: 'Esquiva', esq_la: 'Esquiva', corrida: 'Velocidade',
+  atk_cc: 'Dano', atk_la: 'Dano', intimidacao: 'Carisma', convencer: 'Carisma', enganar: 'Carisma',
+};
+
+/** Só as rolagens básicas (iguais às padrão) ganham grupo; as criadas pelo jogador ficam em "Minhas rolagens". */
+export function grupoDa(f: Formula): string {
+  if (!DEFAULT_FORMULAS.some(d => d.formula === f.formula)) return 'Minhas rolagens';
+  const token = f.formula.match(/\{(\w+)\}/)?.[1] ?? '';
+  return GRUPO_TOKEN[token] ?? 'Minhas rolagens';
+}
 
 /** Tokens com os liga/desliga de Stress aplicados. */
 export function tokensComConfig(sheet: StatusSheet, cfg: AppConfig): Tokens {
@@ -17,13 +31,13 @@ export function tokensComConfig(sheet: StatusSheet, cfg: AppConfig): Tokens {
 export function rolagens(sheet: StatusSheet, mochila: Mochila | null, cfg: AppConfig): Rolagem[] {
   const t = tokensComConfig(sheet, cfg);
   const out: Rolagem[] = cfg.formulas.map(f => ({
-    chave: 'f:' + f.nome, nome: f.nome, cmd: cleanRoll(buildRoll(formulaComPassivas(f, cfg), t)),
+    chave: 'f:' + f.nome, nome: f.nome, grupo: grupoDa(f), cmd: cleanRoll(buildRoll(formulaComPassivas(f, cfg), t)),
   }));
   armas(mochila).forEach(a => {
     const cmd = weaponRoll(a.dano, t, cfg.stressDano, a.nome);
     if (!cmd) return;
     const pct = /corpo a corpo/i.test(a.dano) ? cfg.pctDanoCC ?? 0 : /longo alcan/i.test(a.dano) ? cfg.pctDanoLA ?? 0 : 0;
-    out.push({ chave: 'a:' + a.nome, nome: a.nome, cmd: '/roll ' + aplicarPercentual(cmd.replace(/^\/roll\s+/, ''), pct), arma: true });
+    out.push({ chave: 'a:' + a.nome, nome: a.nome, grupo: 'Armas', cmd: '/roll ' + aplicarPercentual(cmd.replace(/^\/roll\s+/, ''), pct), arma: true });
   });
   return out;
 }

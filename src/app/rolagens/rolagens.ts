@@ -1,14 +1,14 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { TOKEN_NAMES, Tokens, buildRoll, cleanRoll } from '../core/ficha-parser.service';
+import { TOKEN_NAMES, Tokens, buildRoll, cleanRoll, norm } from '../core/ficha-parser.service';
 import { FichasStore } from '../core/fichas.store';
 import {
   ATRIBUTOS, Arredondar, ModoStress, Montagem, Termo, explicarPercentual, lerFormula, montagemVazia,
   montarFormula, normalizarDado,
 } from '../core/formula-builder';
 import { AppConfig, DEFAULT_FORMULAS, Formula } from '../core/models';
-import { carga, formulaComPassivas, pctPassivas, rolagens, tokensComConfig } from '../core/rolagens';
+import { GRUPOS, Rolagem, carga, formulaComPassivas, pctPassivas, rolagens, tokensComConfig } from '../core/rolagens';
 import { UiService } from '../core/ui.service';
 
 /** Item em edição: `manual` = escrita à mão; senão é montada pelo seletor em `m`. */
@@ -40,10 +40,32 @@ export class RolagensComponent {
     return s ? rolagens(s, this.store.mochila, this.store.config()) : [];
   });
 
-  // ----- favoritas -----
+  // ----- pesquisa -----
+  readonly busca = signal('');
+  /** Confere nome, grupo e comando, sem diferenciar acento/maiúscula. */
+  private bate(texto: string[]): boolean {
+    const q = norm(this.busca());
+    return !q || texto.some(t => norm(t).includes(q));
+  }
+  readonly filtradas = computed(() => this.lista().filter(r => this.bate([r.nome, r.grupo, r.cmd])));
+
+  // ----- favoritas e grupos -----
   readonly favoritas = computed(() => new Set(this.store.config().favoritas ?? []));
-  readonly fav = computed(() => this.lista().filter(r => this.favoritas().has(r.chave)));
-  readonly outras = computed(() => this.lista().filter(r => !this.favoritas().has(r.chave)));
+  readonly fav = computed(() => this.filtradas().filter(r => this.favoritas().has(r.chave)));
+  /** Demais rolagens separadas por grupo (Precisão, Esquiva, …, Minhas rolagens). */
+  readonly grupos = computed(() => {
+    const resto = this.filtradas().filter(r => !this.favoritas().has(r.chave));
+    return GRUPOS.map(nome => ({ nome, itens: resto.filter(r => r.grupo === nome) }))
+      .filter(g => g.itens.length) as { nome: string; itens: Rolagem[] }[];
+  });
+  readonly fechados = signal<Set<string>>(new Set());
+  alternarGrupo(nome: string): void {
+    this.fechados.update(s => { const n = new Set(s); if (n.has(nome)) n.delete(nome); else n.add(nome); return n; });
+  }
+  /** Rascunhos visíveis na edição (mantém o índice real para mover/remover). */
+  visiveis(): { f: Rascunho; i: number }[] {
+    return this.rascunho.map((f, i) => ({ f, i })).filter(x => this.bate([x.f.nome, x.f.formula]));
+  }
 
   toggleFav(chave: string): void {
     const atual = this.store.config().favoritas ?? [];

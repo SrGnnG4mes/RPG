@@ -351,3 +351,16 @@ button.link {
   }
   &:hover .formula-nome { color: var(--gold); }
 }
+
+// pesquisa e grupos de rolagens
+.busca { display: flex; gap: 6px; margin: 4px 0 10px; input { padding: 6px 10px; } }
+.grupo-titulo {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  background: none; border: none; border-bottom: 1px solid var(--line);
+  padding: 8px 2px 4px; margin: 6px 0 6px; cursor: pointer; text-align: left;
+  font-size: .75rem; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 600;
+  .seta { color: var(--gold); width: 10px; }
+  small { margin-left: auto; font-weight: 400; }
+  &:hover { color: var(--text); }
+}
+.favoritas-titulo { color: var(--gold) !important; }

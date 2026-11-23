@@ -34,20 +34,31 @@
 
   @if (!editando()) {
     <p class="muted small">Toque para copiar e cole no chat do Roll20. Use ☆ para fixar as favoritas no topo.</p>
+    <ng-container *ngTemplateOutlet="pesquisa" />
     @if (fav().length) {
-      <h4 class="rolls-titulo">★ Favoritas</h4>
+      <h4 class="rolls-titulo favoritas-titulo">★ Favoritas</h4>
       <div class="rolls">
         @for (r of fav(); track r.chave + $index) {
           <ng-container *ngTemplateOutlet="rolagem; context: { $implicit: r }" />
         }
       </div>
-      @if (outras().length) { <h4 class="rolls-titulo">Outras</h4> }
     }
-    <div class="rolls">
-      @for (r of outras(); track r.chave + $index) {
-        <ng-container *ngTemplateOutlet="rolagem; context: { $implicit: r }" />
+    @for (g of grupos(); track g.nome) {
+      <button class="grupo-titulo" (click)="alternarGrupo(g.nome)" [attr.aria-expanded]="!fechados().has(g.nome) || !!busca()">
+        <span class="seta">{{ fechados().has(g.nome) && !busca() ? '▸' : '▾' }}</span>
+        {{ g.nome }} <small>{{ g.itens.length }}</small>
+      </button>
+      @if (!fechados().has(g.nome) || busca()) {
+        <div class="rolls">
+          @for (r of g.itens; track r.chave + $index) {
+            <ng-container *ngTemplateOutlet="rolagem; context: { $implicit: r }" />
+          }
+        </div>
       }
-    </div>
+    }
+    @if (busca() && !fav().length && !grupos().length) {
+      <p class="muted small">Nenhuma rolagem encontrada para "{{ busca() }}".</p>
+    }
     <ng-template #rolagem let-r>
       <div class="roll" [class.arma]="r.arma" [class.favorita]="favoritas().has(r.chave)">
         <button class="roll-copiar" (click)="copiar(r.cmd)" [disabled]="!r.cmd">
@@ -62,8 +73,11 @@
       </div>
     </ng-template>
   } @else {
+    <ng-container *ngTemplateOutlet="pesquisa" />
     <div class="formulas">
-      @for (f of rascunho; track $index; let i = $index) {
+      @for (x of visiveis(); track x.i) {
+        @let f = x.f;
+        @let i = x.i;
         <div class="formula" [class.aberta]="f.aberto">
           <div class="formula-head">
             <button class="formula-titulo" (click)="alternar(f)" [attr.aria-expanded]="!!f.aberto">
@@ -161,4 +175,10 @@
       </ul>
     </details>
   }
+  <ng-template #pesquisa>
+    <div class="busca">
+      <input type="search" placeholder="Pesquisar rolagem…" [ngModel]="busca()" (ngModelChange)="busca.set($event)" />
+      @if (busca()) { <button class="btn small ghost" (click)="busca.set('')" title="Limpar">✕</button> }
+    </div>
+  </ng-template>
 </section>
