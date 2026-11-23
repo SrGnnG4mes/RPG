@@ -1,0 +1,66 @@
+@if (view(); as v) {
+  <section class="card carga" [class.over]="v.excesso > 0">
+    <div class="carga-head">
+      <h3>Peso total</h3>
+      <div class="carga-num">
+        <b>{{ fmt(v.total) }} kg</b>
+        @if (v.limite) { <span> / {{ fmt(v.limite) }} kg</span> }
+      </div>
+    </div>
+    @if (v.limite) {
+      <div class="bar"><div class="bar-fill" [style.width.%]="v.pct"></div></div>
+    } @else {
+      <p class="muted small">Sem limite: a ficha não tem "até X kg" em Levantamento de peso.</p>
+    }
+    @if (v.excesso > 0) {
+      <p class="warn">Acima do limite em {{ v.excesso }} kg: −{{ v.excesso }} em Velocidade de corrida e Velocidade de reação.</p>
+    }
+  </section>
+
+  @for (s of v.sections; track $index) {
+    <section class="card mochila-sec" [class.sub]="s.level === 2">
+      <div class="card-head">
+        <h3>{{ s.title }}</h3>
+        <button class="btn small" (click)="addItem(s)">+ Item</button>
+      </div>
+      @if (!s.items.length) {
+        <p class="muted small">Vazia.</p>
+      }
+      <div class="items">
+        @for (it of s.items; track $index; let i = $index) {
+          <article class="item">
+            <div class="item-head">
+              <input class="item-nome" [ngModel]="it.name" (ngModelChange)="setNome(it, $event)" />
+              @if (peso(it); as p) { <span class="peso">{{ p }}</span> }
+            </div>
+            <div class="item-attrs">
+              @for (a of it.attrs; track $index; let j = $index) {
+                <div class="item-attr">
+                  <input class="k" [value]="a.key" (change)="setAttr(it, j, 'key', $any($event.target).value)" />
+                  <span class="eq">=</span>
+                  <input class="val" [ngModel]="a.value" (ngModelChange)="setAttr(it, j, 'value', $event)" />
+                  <button class="btn small ghost" (click)="removeAttr(it, j)" title="Remover atributo">✕</button>
+                </div>
+              }
+            </div>
+            @if (it.notes.length) {
+              <textarea class="notas" rows="2" [value]="notas(it)" (change)="setNotas(it, $any($event.target).value)"></textarea>
+            }
+            <div class="btn-row">
+              @if (dano(it)) {
+                <button class="btn small gold" (click)="copiarDano(it)">⚔ Copiar dano</button>
+              }
+              <button class="btn small ghost" (click)="addAttr(it)">+ Atributo</button>
+              @if (!it.notes.length) {
+                <button class="btn small ghost" (click)="setNotas(it, 'Nota')">+ Nota</button>
+              }
+              <span class="grow"></span>
+              <button class="btn small danger" (click)="removeItem(s, i)">Remover</button>
+            </div>
+          </article>
+        }
+      </div>
+    </section>
+  }
+  <button class="btn" (click)="addSecao()">+ Nova seção</button>
+}

@@ -1,0 +1,157 @@
+<section class="card rolagens">
+  <div class="card-head">
+    <h3>Rolagens para o Roll20</h3>
+    @if (!editando()) {
+      <button class="btn small ghost" (click)="editar()">Editar fórmulas</button>
+    }
+  </div>
+
+  <div class="toggles">
+    <label><input type="checkbox" [ngModel]="store.config().stressTeste" (ngModelChange)="toggleStress('stressTeste', $event)" /> Stress nos testes</label>
+    <label><input type="checkbox" [ngModel]="store.config().stressDano" (ngModelChange)="toggleStress('stressDano', $event)" /> Stress no dano</label>
+  </div>
+
+  <details class="passivas">
+    <summary>Passivas de dano (% no resultado final)</summary>
+    <div class="passivas-campos">
+      <label>Corpo a corpo
+        <span class="pct"><input type="number" step="any" [value]="store.config().pctDanoCC ?? 0"
+               (change)="setPassiva('pctDanoCC', $any($event.target).value)" />%</span>
+      </label>
+      <label>Longo alcance
+        <span class="pct"><input type="number" step="any" [value]="store.config().pctDanoLA ?? 0"
+               (change)="setPassiva('pctDanoLA', $any($event.target).value)" />%</span>
+      </label>
+    </div>
+    <p class="muted small">Vale para as armas da mochila e para as rolagens que usam Ataque CC / Ataque LA.</p>
+  </details>
+
+  @if (carga(); as c) {
+    @if (c.excesso > 0) {
+      <p class="warn">Carga {{ c.total }} kg / {{ c.limite }} kg: −{{ c.excesso }} em Velocidade de corrida e Velocidade de reação.</p>
+    }
+  }
+
+  @if (!editando()) {
+    <p class="muted small">Toque para copiar e cole no chat do Roll20. Use ☆ para fixar as favoritas no topo.</p>
+    @if (fav().length) {
+      <h4 class="rolls-titulo">★ Favoritas</h4>
+      <div class="rolls">
+        @for (r of fav(); track r.chave + $index) {
+          <ng-container *ngTemplateOutlet="rolagem; context: { $implicit: r }" />
+        }
+      </div>
+      @if (outras().length) { <h4 class="rolls-titulo">Outras</h4> }
+    }
+    <div class="rolls">
+      @for (r of outras(); track r.chave + $index) {
+        <ng-container *ngTemplateOutlet="rolagem; context: { $implicit: r }" />
+      }
+    </div>
+    <ng-template #rolagem let-r>
+      <div class="roll" [class.arma]="r.arma" [class.favorita]="favoritas().has(r.chave)">
+        <button class="roll-copiar" (click)="copiar(r.cmd)" [disabled]="!r.cmd">
+          <span class="roll-nome">{{ r.arma ? '⚔ ' : '' }}{{ r.nome }}</span>
+          <code>{{ r.cmd || '—' }}</code>
+        </button>
+        <button class="roll-fav" (click)="toggleFav(r.chave)"
+                [attr.aria-label]="favoritas().has(r.chave) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'"
+                [title]="favoritas().has(r.chave) ? 'Remover dos favoritos' : 'Favoritar'">
+          {{ favoritas().has(r.chave) ? '★' : '☆' }}
+        </button>
+      </div>
+    </ng-template>
+  } @else {
+    <div class="formulas">
+      @for (f of rascunho; track $index; let i = $index) {
+        <div class="formula">
+          <div class="formula-head">
+            <input class="nome" [(ngModel)]="f.nome" placeholder="Nome da rolagem" />
+            <button class="btn small ghost" (click)="mover(i, -1)" title="Subir">↑</button>
+            <button class="btn small ghost" (click)="mover(i, 1)" title="Descer">↓</button>
+            <button class="btn small danger" (click)="remover(i)" title="Remover">✕</button>
+          </div>
+
+          @if (!f.manual) {
+            @if (f.m.termos.length) {
+              <div class="termos">
+                @for (t of f.m.termos; track $index; let j = $index) {
+                  <div class="termo">
+                    <button class="sinal" (click)="trocarSinal(f, t)" title="Trocar sinal">{{ t.sinal === '+' ? '+' : '−' }}</button>
+                    <span class="termo-nome">{{ nomeTermo(t) }} <small>{{ valorTermo(t) }}</small></span>
+                    <input class="termo-rotulo" [value]="t.rotulo ?? ''" placeholder="rótulo"
+                           (change)="setRotulo(f, t, $any($event.target).value)" />
+                    <button class="btn small ghost" (click)="removerTermo(f, j)" title="Tirar">✕</button>
+                  </div>
+                }
+              </div>
+            }
+
+            <p class="muted small">Atributos da ficha (toque para incluir ou tirar):</p>
+            <div class="chips">
+              @for (a of atributos; track a.token) {
+                <button class="chip" [class.on]="temAtributo(f, a.token)" (click)="toggleAtributo(f, a.token)">
+                  {{ a.nome }} <small>{{ valor(a.token) }}</small>
+                </button>
+              }
+            </div>
+            <div class="extra">
+              <input #extra placeholder="Número ou dado" (keydown.enter)="addExtra(f, extra)" />
+              <button class="btn small" (click)="addExtra(f, extra)">+ Adicionar</button>
+            </div>
+
+            <div class="linha-opcoes">
+              <div class="segmento" role="group" aria-label="Stress">
+                @for (s of modosStress; track s.v) {
+                  <button [class.on]="f.m.stress === s.v" (click)="setStress(f, s.v)">{{ s.nome }}</button>
+                }
+              </div>
+              <label class="pct-final">% no resultado final
+                <span class="pct"><input type="number" step="any" [ngModel]="f.m.percentual"
+                       (ngModelChange)="setPercentual(f, $event)" />%</span>
+              </label>
+              @if (f.m.percentual) {
+                <label class="pct-final">Arredondar
+                  <select [ngModel]="f.m.arredondar" (ngModelChange)="setArredondar(f, $event)">
+                    @for (a of arredondamentos; track a.v) { <option [value]="a.v">{{ a.nome }}</option> }
+                  </select>
+                </label>
+              }
+            </div>
+          } @else {
+            <textarea rows="2" [(ngModel)]="f.formula" spellcheck="false"></textarea>
+          }
+
+          <div class="previa">
+            @if (previa(f); as p) {
+              <code>{{ p }}</code>
+              @if (explicacao(f); as e) { <small>{{ e }}</small> }
+            } @else {
+              <small class="muted">{{ f.manual ? 'Fórmula vazia.' : 'Nada escolhido ainda.' }}</small>
+            }
+          </div>
+          <button class="link" (click)="alternarManual(f)">{{ f.manual ? 'Voltar para o seletor' : 'Escrever a fórmula à mão' }}</button>
+        </div>
+      }
+    </div>
+    <div class="btn-row">
+      <button class="btn" (click)="adicionar()">+ Rolagem</button>
+      <button class="btn ghost" (click)="padrao()">Padrões</button>
+      <span class="grow"></span>
+      <button class="btn ghost" (click)="cancelar()">Cancelar</button>
+      <button class="btn gold" (click)="salvar()">Salvar</button>
+    </div>
+    <details class="tokens">
+      <summary>Tokens (para escrever à mão)</summary>
+      <p class="muted small">
+        Use <code>{{ '{' }}token{{ '}' }}</code> seguido de <code>[Rótulo]</code>, com <code>+ - * ( )</code> e
+        <code>floor( )</code>, <code>round( )</code>, <code>ceil( )</code> do Roll20. Termos vazios viram 0.
+      </p>
+      <ul>
+        @for (t of tokens(); track t.k) {
+          <li><code>{{ '{' + t.k + '}' }}</code> = {{ t.v }}</li>
+        }
+      </ul>
+    </details>
+  }
+</section>

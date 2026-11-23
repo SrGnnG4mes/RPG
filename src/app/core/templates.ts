@@ -1,0 +1,60 @@
+// Modelos usados em "Nova ficha" (e como exemplo nos testes).
+// Seguem o formato reconhecido pelo parser (ver ficha-parser.service.ts).
+
+export function statusTemplate(nome: string): string {
+  return [
+    '=[ Nível ]= [1] (+0) pontos (+5) nível',
+    '-=>> Exp = 0',
+    '-=>> Resets = [0]',
+    '',
+    `Nome: ${nome}`,
+    'Idade: ',
+    'Sexo: ',
+    'Raça: ',
+    'Classe: ',
+    'Altura: ',
+    'Personalidade: ',
+    'Gosta de >>[]<<',
+    '',
+    '[ HP ] = 100',
+    '[ Energia ] = 100',
+    '[ C.O ] = 0',
+    '[ Stress ] = 0 ( -0 de status nos testes / +0 de dano )',
+    '',
+    '[ -- Precisão -- ]',
+    '  |>> Corpo a corpo = d5 ( +1 )( +0 ) d5+1',
+    '  |>> Longo alcance = d5 ( +1 )( +0 ) d5+1',
+    '  |_>> Velocidade de reação = +1',
+    '',
+    '[ -- Destreza -- ]',
+    '  |>> Esquiva de ataque corpo a corpo = d5 ( +1 )( +0 ) d5+1',
+    '  |>> Esquiva de longo alcance = d5 ( +1 )( +0 ) d5+1',
+    '  |>> Reflexo = +1',
+    '  |_>> Velocidade de corrida = d5 ( +1 )( +0 ) d5+1',
+    '',
+    '[ -- Atributos de ataque -- ]',
+    '  |>> Corpo a corpo = d5 ( +1 )( +0 ) d5+1',
+    '  |>> Longo alcance = d5 ( +1 )( +0 ) d5+1',
+    '  |_>> Levantamento de peso = d5 ( +1 )( +0 ) d5+1 até 10 kg',
+    '',
+    '[ -- Carisma -- ]',
+    '  |>> Intimidação = d5 ( +1 )( +0 ) d5+1',
+    '  |>> Convencer = d5 ( +1 )( +0 ) d5+1',
+    '  |_>> Enganar = d5 ( +1 )( +0 ) d5+1',
+    '',
+    '=====>> Profissões <<=====',
+    '',
+    '=====>> Buffs <<=====',
+    '',
+    '=====>> Habilidades <<=====',
+    '',
+    '=====>> Passivas <<=====',
+    '',
+    '=====>> Transformações <<=====',
+    '',
+  ].join('\r\n');
+}
+
+export function mochilaTemplate(): string {
+  return ['-=>> Mochila <<=-', '', ''].join('\r\n');
+}

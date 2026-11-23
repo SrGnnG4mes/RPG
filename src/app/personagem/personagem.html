@@ -1,0 +1,131 @@
+@if (view(); as v) {
+  <div class="layout-2col">
+    <div class="col-main">
+      <!-- Identidade + nível -->
+      <section class="card">
+        <h3>Identidade</h3>
+        @if (v.nivel; as n) {
+          <div class="nivel-row">
+            <label class="mini">Nível
+              <input type="number" [ngModel]="n.nivel" (ngModelChange)="setNivel('nivel', $event)" />
+            </label>
+            @if (n.pontos != null) {
+              <label class="mini" [class.neg]="n.pontos! < 0">Pontos livres
+                <input type="number" [ngModel]="n.pontos" (ngModelChange)="setNivel('pontos', $event)" />
+              </label>
+            }
+            @if (n.pontosNivel != null) {
+              <label class="mini">Pontos por nível
+                <input type="number" [ngModel]="n.pontosNivel" (ngModelChange)="setNivel('pontosNivel', $event)" />
+              </label>
+            }
+          </div>
+        }
+        <div class="grid-fields">
+          @for (f of v.ident; track f.id) {
+            @if (f.id !== 'gosta') {
+              <label class="field">
+                <span>{{ f.key }}</span>
+                <input [ngModel]="f.value" (ngModelChange)="setText(f, $event)" />
+              </label>
+            }
+          }
+        </div>
+        @if (v.gosta; as g) {
+          <div class="gosta">
+            <span class="gosta-titulo">Gosta de <small>(até {{ gostaMax }})</small></span>
+            <ol>
+              @for (item of gostaSlots(g); track $index; let i = $index) {
+                <li>
+                  <input [value]="item" [placeholder]="'Gosto ' + (i + 1)"
+                         (input)="setGosta(g, i, $any($event.target).value)" />
+                </li>
+              }
+            </ol>
+          </div>
+        }
+      </section>
+
+      <!-- Vitais -->
+      @if (v.vitais.length) {
+        <section class="card">
+          <h3>Vitais</h3>
+          <div class="vitais">
+            @for (f of v.vitais; track f.id) {
+              <label class="vital" [class.stress]="isStress(f)">
+                <span>{{ f.key }}</span>
+                <input type="number" [ngModel]="f.value" (ngModelChange)="setVital(f, $event)" />
+                @if (isStress(f)) {
+                  <small>−{{ v.stressT }} nos testes · +{{ v.stress }} no dano</small>
+                }
+              </label>
+            }
+          </div>
+        </section>
+      }
+
+      <!-- Atributos -->
+      @for (g of v.grupos; track g.cat) {
+        <section class="card">
+          <h3>{{ g.cat }}</h3>
+          <div class="attrs">
+            @for (f of g.fields; track f.id) {
+              @if (f.kind === 'dice') {
+                <div class="attr dice">
+                  <div class="attr-key">{{ f.key }}</div>
+                  <div class="dice-ctl">
+                    <button class="step" (click)="step(f, -1)" aria-label="Diminuir dado">−</button>
+                    <span class="d">d</span>
+                    <input class="die" type="number" min="0" [ngModel]="f.die" (ngModelChange)="setNum(f, 'die', $event)" />
+                    <button class="step" (click)="step(f, 1)" aria-label="Aumentar dado">+</button>
+                  </div>
+                  <div class="bonus">
+                    <label [title]="f.auto ? 'Automático: floor(dado / 5)' : 'Bônus manual'">
+                      <button class="auto" [class.on]="f.auto" (click)="toggleAuto(f)">A</button>
+                      <input type="number" [ngModel]="f.b1" [disabled]="!!f.auto" (ngModelChange)="setNum(f, 'b1', $event)" />
+                    </label>
+                    <label title="Bônus extra">
+                      <span class="plus">+</span>
+                      <input type="number" [ngModel]="f.b2" (ngModelChange)="setNum(f, 'b2', $event)" />
+                    </label>
+                  </div>
+                  <div class="total">{{ total(f) }}@if (f.suffix?.trim()) {<small>{{ f.suffix }}</small>}</div>
+                </div>
+              } @else {
+                <div class="attr">
+                  <div class="attr-key">
+                    {{ f.key }}
+                    @if (v.calc[f.id]; as c) {
+                      <small class="calc" [class.diff]="c !== f.value.trim()" title="Calculado pelas regras">auto {{ c }}</small>
+                    }
+                  </div>
+                  @if (f.star) {
+                    <div class="attr-val pontos">
+                      <button class="step" (click)="stepMain(f, -1)" aria-label="Diminuir">−</button>
+                      <input [ngModel]="f.value" (ngModelChange)="setAttr(f, $event)" />
+                      <button class="step" (click)="stepMain(f, 1)" aria-label="Aumentar">+</button>
+                    </div>
+                  } @else {
+                    <input class="attr-val" [ngModel]="f.value" (ngModelChange)="setText(f, $event)" />
+                  }
+                </div>
+              }
+            }
+          </div>
+        </section>
+      }
+
+      <!-- Seções livres -->
+      @for (s of v.sections; track $index; let i = $index) {
+        <section class="card">
+          <h3>{{ s.title }}</h3>
+          <textarea class="free" [rows]="rows(s.text)" [ngModel]="s.text" (ngModelChange)="setSection(i, $event)"></textarea>
+        </section>
+      }
+    </div>
+
+    <aside class="col-side">
+      <app-rolagens />
+    </aside>
+  </div>
+}

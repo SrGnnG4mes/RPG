@@ -1,0 +1,74 @@
+<header class="topbar">
+  <div class="topbar-row">
+    <div class="brand">RPG <b>Dark</b> <span>· Fichas</span></div>
+
+    <select class="ficha-select" aria-label="Personagem" (change)="store.select($any($event.target).value || null)">
+      @if (!store.fichas().length) {
+        <option value="">— nenhuma ficha —</option>
+      }
+      @for (f of store.fichas(); track f.id) {
+        <option [value]="f.id" [selected]="f.id === store.currentId()">{{ f.nome || 'Sem nome' }}</option>
+      }
+    </select>
+
+    <div class="auth">
+      @if (fb.enabled) {
+        @if (fb.user(); as u) {
+          @if (u.photoURL) {
+            <img class="avatar" [src]="u.photoURL" alt="" referrerpolicy="no-referrer" />
+          }
+          <button class="btn ghost" (click)="logout()" [title]="u.email ?? ''">Sair</button>
+        } @else if (!fb.authLoading()) {
+          <button class="btn gold" (click)="login()">Entrar com Google</button>
+        }
+      } @else {
+        <span class="muted small" title="Preencha src/environments/environment.ts para ativar o login">Modo local</span>
+      }
+    </div>
+  </div>
+
+  <div class="topbar-row actions">
+    <label class="btn">
+      Importar .txt
+      <input type="file" accept=".txt,text/plain" multiple hidden (change)="onFiles($event)" />
+    </label>
+    <button class="btn" (click)="exportar('status')" [disabled]="!store.current()">Exportar Status</button>
+    <button class="btn" (click)="exportar('mochila')" [disabled]="!store.current()">Exportar Mochila</button>
+    <button class="btn" (click)="nova()">Nova ficha</button>
+    <button class="btn danger" (click)="apagar()" [disabled]="!store.current()">Apagar</button>
+    <span class="sync" [class.err]="store.sync() === 'erro'">{{ syncLabel[store.sync()] }}</span>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button [class.active]="tab() === 'personagem'" (click)="setTab('personagem')">Personagem</button>
+  <button [class.active]="tab() === 'mochila'" (click)="setTab('mochila')">Mochila</button>
+</nav>
+
+<main class="content">
+  @if (store.sheet) {
+    @if (tab() === 'personagem') {
+      <app-personagem />
+    } @else {
+      <app-mochila />
+    }
+  } @else if (store.sync() === 'carregando') {
+    <p class="empty">Carregando fichas…</p>
+  } @else {
+    <div class="empty">
+      <h2>Nenhuma ficha aberta</h2>
+      <p>Arraste os arquivos <code>Status_Nome.txt</code> e <code>Mochila_Nome.txt</code> para esta página,
+        use <b>Importar .txt</b> ou crie uma <b>Nova ficha</b>.</p>
+      @if (fb.enabled && !fb.user()) {
+        <p class="muted">Entre com Google para guardar as fichas na nuvem e abrir em qualquer dispositivo.</p>
+      }
+    </div>
+  }
+</main>
+
+@if (dragging()) {
+  <div class="drop-overlay"><div>Solte os arquivos <b>.txt</b> para importar</div></div>
+}
+@if (ui.toastMsg(); as msg) {
+  <div class="toast" role="status">{{ msg }}</div>
+}
