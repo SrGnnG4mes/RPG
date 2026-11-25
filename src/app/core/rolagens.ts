@@ -28,12 +28,12 @@ export function tokensComConfig(sheet: StatusSheet, cfg: AppConfig): Tokens {
   return t;
 }
 
-export function rolagens(sheet: StatusSheet, mochila: Mochila | null, cfg: AppConfig): Rolagem[] {
+export function rolagens(sheet: StatusSheet, mochila: Mochila | null, cfg: AppConfig, comArmas = true): Rolagem[] {
   const t = tokensComConfig(sheet, cfg);
   const out: Rolagem[] = cfg.formulas.map(f => ({
     chave: 'f:' + f.nome, nome: f.nome, grupo: grupoDa(f), cmd: cleanRoll(buildRoll(formulaComPassivas(f, cfg), t)),
   }));
-  armas(mochila).forEach(a => {
+  if (comArmas) armas(mochila).forEach(a => {
     const cmd = weaponRoll(a.dano, t, cfg.stressDano, a.nome);
     if (!cmd) return;
     const pct = /corpo a corpo/i.test(a.dano) ? cfg.pctDanoCC ?? 0 : /longo alcan/i.test(a.dano) ? cfg.pctDanoLA ?? 0 : 0;

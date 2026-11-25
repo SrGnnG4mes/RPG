@@ -1,6 +1,7 @@
 import { Component, HostListener, inject, signal } from '@angular/core';
 import { FichasStore } from './core/fichas.store';
 import { FirebaseService } from './core/firebase.service';
+import { SISTEMAS } from './core/sistemas';
 import { UiService } from './core/ui.service';
 import { MochilaComponent } from './mochila/mochila';
 import { PersonagemComponent } from './personagem/personagem';
@@ -17,6 +18,7 @@ export class App {
   readonly fb = inject(FirebaseService);
   readonly ui = inject(UiService);
 
+  readonly sistemas = SISTEMAS;
   readonly tab = signal<Tab>(location.hash === '#mochila' ? 'mochila' : 'personagem');
   readonly dragging = signal(false);
   private dragDepth = 0;
@@ -33,6 +35,10 @@ export class App {
   setTab(t: Tab): void {
     this.tab.set(t);
     history.replaceState(null, '', '#' + t);
+  }
+
+  trocarRpg(): void {
+    this.store.escolherSistema(null);
   }
 
   async onFiles(ev: Event): Promise<void> {
@@ -111,6 +117,7 @@ export class App {
   onDrop(e: DragEvent): void {
     if (!e.dataTransfer?.files.length) return;
     e.preventDefault();
+    if (!this.store.sistema()) { this.dragDepth = 0; this.dragging.set(false); this.ui.toast('Escolha o RPG antes de importar'); return; }
     this.dragDepth = 0;
     this.dragging.set(false);
     this.importar(Array.from(e.dataTransfer.files));

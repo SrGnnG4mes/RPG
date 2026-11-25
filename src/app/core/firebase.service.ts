@@ -48,8 +48,27 @@ export class FirebaseService {
     if (this.auth) await signOut(this.auth);
   }
 
-  watchFichas(uid: string, cb: (fichas: RemoteFicha[]) => void, onError: (e: unknown) => void): Unsubscribe {
-    const col = collection(this.db!, 'users', uid, 'fichas');
+  /**
+   * Onde ficam os dados de um RPG na conta do usuário:
+   *   RPG Dark  → users/{uid}/fichas, users/{uid}/config/app (caminho original, não muda)
+   *   outros    → users/{uid}/sistemas/{sistema}/fichas, .../config/app
+   */
+  static base(uid: string, sistema: string): string[] {
+    return sistema === 'dark' ? ['users', uid] : ['users', uid, 'sistemas', sistema];
+  }
+
+  private fichaRef(base: string[], id: string) {
+    const [a, ...resto] = [...base, 'fichas', id];
+    return doc(this.db!, a, ...resto);
+  }
+  private configRef(base: string[]) {
+    const [a, ...resto] = [...base, 'config', 'app'];
+    return doc(this.db!, a, ...resto);
+  }
+
+  watchFichas(base: string[], cb: (fichas: RemoteFicha[]) => void, onError: (e: unknown) => void): Unsubscribe {
+    const [a, ...resto] = [...base, 'fichas'];
+    const col = collection(this.db!, a, ...resto);
     return onSnapshot(col, { includeMetadataChanges: true }, snap => {
       cb(snap.docs.map(d => {
         const x = d.data();
@@ -64,31 +83,31 @@ export class FirebaseService {
     }, onError);
   }
 
-  saveFicha(uid: string, f: FichaDoc): Promise<void> {
-    return setDoc(doc(this.db!, 'users', uid, 'fichas', f.id), {
+  saveFicha(base: string[], f: FichaDoc): Promise<void> {
+    return setDoc(this.fichaRef(base, f.id), {
       nome: f.nome, status: f.status, mochila: f.mochila, atualizadoEm: serverTimestamp(),
     });
   }
 
-  async saveFichas(uid: string, fichas: FichaDoc[]): Promise<void> {
+  async saveFichas(base: string[], fichas: FichaDoc[]): Promise<void> {
     const batch = writeBatch(this.db!);
-    fichas.forEach(f => batch.set(doc(this.db!, 'users', uid, 'fichas', f.id), {
+    fichas.forEach(f => batch.set(this.fichaRef(base, f.id), {
       nome: f.nome, status: f.status, mochila: f.mochila, atualizadoEm: serverTimestamp(),
     }));
     await batch.commit();
   }
 
-  deleteFicha(uid: string, id: string): Promise<void> {
-    return deleteDoc(doc(this.db!, 'users', uid, 'fichas', id));
+  deleteFicha(base: string[], id: string): Promise<void> {
+    return deleteDoc(this.fichaRef(base, id));
   }
 
-  async loadConfig(uid: string): Promise<Partial<AppConfig> | null> {
-    const snap = await getDoc(doc(this.db!, 'users', uid, 'config', 'app'));
+  async loadConfig(base: string[]): Promise<Partial<AppConfig> | null> {
+    const snap = await getDoc(this.configRef(base));
     return snap.exists() ? (snap.data() as Partial<AppConfig>) : null;
   }
 
-  saveConfig(uid: string, cfg: AppConfig): Promise<void> {
-    return setDoc(doc(this.db!, 'users', uid, 'config', 'app'), {
+  saveConfig(base: string[], cfg: AppConfig): Promise<void> {
+    return setDoc(this.configRef(base), {
       formulas: cfg.formulas, stressTeste: cfg.stressTeste, stressDano: cfg.stressDano,
       favoritas: cfg.favoritas ?? [],
       pctDanoCC: cfg.pctDanoCC ?? 0,

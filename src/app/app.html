@@ -1,15 +1,21 @@
 <header class="topbar">
   <div class="topbar-row">
-    <div class="brand">RPG <b>Dark</b> <span>· Fichas</span></div>
+    @if (store.sistema(); as s) {
+      <button class="brand brand-btn" (click)="trocarRpg()" title="Trocar de RPG">
+        {{ s.nome }} <span>· Fichas</span> <small class="trocar">trocar ▾</small>
+      </button>
 
-    <select class="ficha-select" aria-label="Personagem" (change)="store.select($any($event.target).value || null)">
-      @if (!store.fichas().length) {
-        <option value="">— nenhuma ficha —</option>
-      }
-      @for (f of store.fichas(); track f.id) {
-        <option [value]="f.id" [selected]="f.id === store.currentId()">{{ f.nome || 'Sem nome' }}</option>
-      }
-    </select>
+      <select class="ficha-select" aria-label="Personagem" (change)="store.select($any($event.target).value || null)">
+        @if (!store.fichas().length) {
+          <option value="">— nenhuma ficha —</option>
+        }
+        @for (f of store.fichas(); track f.id) {
+          <option [value]="f.id" [selected]="f.id === store.currentId()">{{ f.nome || 'Sem nome' }}</option>
+        }
+      </select>
+    } @else {
+      <div class="brand">Fichas de <b>RPG</b></div>
+    }
 
     <div class="auth">
       @if (fb.enabled) {
@@ -27,44 +33,62 @@
     </div>
   </div>
 
-  <div class="topbar-row actions">
-    <label class="btn">
-      Importar .txt
-      <input type="file" accept=".txt,text/plain" multiple hidden (change)="onFiles($event)" />
-    </label>
-    <button class="btn" (click)="exportar('status')" [disabled]="!store.current()">Exportar Status</button>
-    <button class="btn" (click)="exportar('mochila')" [disabled]="!store.current()">Exportar Mochila</button>
-    <button class="btn" (click)="nova()">Nova ficha</button>
-    <button class="btn danger" (click)="apagar()" [disabled]="!store.current()">Apagar</button>
-    <span class="sync" [class.err]="store.sync() === 'erro'">{{ syncLabel[store.sync()] }}</span>
-  </div>
-</header>
-
-<nav class="tabs">
-  <button [class.active]="tab() === 'personagem'" (click)="setTab('personagem')">Personagem</button>
-  <button [class.active]="tab() === 'mochila'" (click)="setTab('mochila')">Mochila</button>
-</nav>
-
-<main class="content">
-  @if (store.sheet) {
-    @if (tab() === 'personagem') {
-      <app-personagem />
-    } @else {
-      <app-mochila />
-    }
-  } @else if (store.sync() === 'carregando') {
-    <p class="empty">Carregando fichas…</p>
-  } @else {
-    <div class="empty">
-      <h2>Nenhuma ficha aberta</h2>
-      <p>Arraste os arquivos <code>Status_Nome.txt</code> e <code>Mochila_Nome.txt</code> para esta página,
-        use <b>Importar .txt</b> ou crie uma <b>Nova ficha</b>.</p>
-      @if (fb.enabled && !fb.user()) {
-        <p class="muted">Entre com Google para guardar as fichas na nuvem e abrir em qualquer dispositivo.</p>
-      }
+  @if (store.sistema()) {
+    <div class="topbar-row actions">
+      <label class="btn">
+        Importar .txt
+        <input type="file" accept=".txt,text/plain" multiple hidden (change)="onFiles($event)" />
+      </label>
+      <button class="btn" (click)="exportar('status')" [disabled]="!store.current()">Exportar Status</button>
+      <button class="btn" (click)="exportar('mochila')" [disabled]="!store.current()">Exportar Mochila</button>
+      <button class="btn" (click)="nova()">Nova ficha</button>
+      <button class="btn danger" (click)="apagar()" [disabled]="!store.current()">Apagar</button>
+      <span class="sync" [class.err]="store.sync() === 'erro'">{{ syncLabel[store.sync()] }}</span>
     </div>
   }
-</main>
+</header>
+
+@if (!store.sistema()) {
+  <!-- escolha do RPG -->
+  <main class="content escolha">
+    <h2>Qual RPG você vai jogar?</h2>
+    <p class="muted">Cada RPG tem as próprias fichas, rolagens e favoritas. Dá para trocar depois pelo nome no topo.</p>
+    <div class="sistemas">
+      @for (s of sistemas; track s.id) {
+        <button class="sistema-card" (click)="store.escolherSistema(s.id)">
+          <span class="sistema-nome">{{ s.nome }}</span>
+          <small>{{ s.descricao }}</small>
+        </button>
+      }
+    </div>
+  </main>
+} @else {
+  <nav class="tabs">
+    <button [class.active]="tab() === 'personagem'" (click)="setTab('personagem')">Personagem</button>
+    <button [class.active]="tab() === 'mochila'" (click)="setTab('mochila')">Mochila</button>
+  </nav>
+
+  <main class="content">
+    @if (store.sheet) {
+      @if (tab() === 'personagem') {
+        <app-personagem />
+      } @else {
+        <app-mochila />
+      }
+    } @else if (store.sync() === 'carregando') {
+      <p class="empty">Carregando fichas…</p>
+    } @else {
+      <div class="empty">
+        <h2>Nenhuma ficha do {{ store.sistema()!.nome }}</h2>
+        <p>Arraste os arquivos de Status e Mochila ({{ store.sistema()!.descricao.replace('Fichas ', '') }}) para esta página,
+          use <b>Importar .txt</b> ou crie uma <b>Nova ficha</b>.</p>
+        @if (fb.enabled && !fb.user()) {
+          <p class="muted">Entre com Google para guardar as fichas na nuvem e abrir em qualquer dispositivo.</p>
+        }
+      </div>
+    }
+  </main>
+}
 
 @if (dragging()) {
   <div class="drop-overlay"><div>Solte os arquivos <b>.txt</b> para importar</div></div>

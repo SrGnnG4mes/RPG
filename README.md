@@ -1,6 +1,6 @@
-# RPG Dark · Fichas
+# Fichas de RPG
 
-Site em Angular para editar as fichas `.txt` (Status e Mochila) do RPG, gerar rolagens para o Roll20 e guardar tudo no Firebase para abrir em qualquer dispositivo.
+Site em Angular para editar as fichas `.txt` (Status e Mochila) de RPGs de mesa (RPG Dark e RPG Cibo), gerar rolagens para o Roll20 e guardar tudo no Firebase para abrir em qualquer dispositivo.
 
 Publicado em: **https://srgnng4mes.github.io/RPG/**
 
@@ -26,10 +26,12 @@ Ao entrar com Google, as fichas locais sobem automaticamente para a conta.
    para [`src/environments/environment.ts`](src/environments/environment.ts). Esses valores podem ficar públicos — a segurança vem das regras.
 6. Faça commit/push: o GitHub Actions publica o site.
 
-Estrutura no Firestore:
+Estrutura no Firestore (cada RPG tem dados separados):
 
-- `users/{uid}/fichas/{fichaId}` → `{ nome, status, mochila, atualizadoEm }` (status/mochila são o texto dos `.txt`)
-- `users/{uid}/config/app` → `{ formulas, stressTeste, stressDano }`
+- RPG Dark: `users/{uid}/fichas/{fichaId}` e `users/{uid}/config/app`
+- Outros RPGs: `users/{uid}/sistemas/{sistema}/fichas/{fichaId}` e `users/{uid}/sistemas/{sistema}/config/app`
+- Ficha: `{ nome, status, mochila, atualizadoEm }` (status/mochila são o texto dos `.txt`)
+- Config: `{ formulas, stressTeste, stressDano, favoritas, pctDanoCC, pctDanoLA }`
 
 O Firestore usa cache offline (`persistentLocalCache`), então dá para editar com internet instável; sincroniza quando voltar.
 
@@ -44,6 +46,8 @@ Uma única vez: em **Settings → Pages → Build and deployment → Source**, e
 | Arquivo | O que faz |
 | --- | --- |
 | `src/app/core/ficha-parser.service.ts` | Lê/escreve os `.txt`, regras automáticas e rolagens. Só reescreve linhas editadas. |
+| `src/app/core/sistemas.ts` | Os RPGs disponíveis (formato da ficha, regras, rolagens padrão). Para adicionar outro RPG, crie uma entrada aqui. |
+| `src/app/core/cibo-parser.ts` | Leitura/escrita das fichas do RPG Cibo. |
 | `src/app/core/fichas.store.ts` | Estado das fichas, importação/exportação, salvamento com debounce (800 ms) no Firestore ou localStorage. |
 | `src/app/core/firebase.service.ts` | Login Google (`signInWithPopup`) e Firestore. |
 | `src/app/core/models.ts` | Fórmulas padrão das rolagens. |

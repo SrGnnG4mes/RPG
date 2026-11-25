@@ -364,3 +364,28 @@ button.link {
   &:hover { color: var(--text); }
 }
 .favoritas-titulo { color: var(--gold) !important; }
+
+// escolha do RPG
+.brand-btn {
+  background: none; border: none; color: inherit; cursor: pointer; padding: 0; font: inherit; font-size: 1.05rem;
+  font-weight: 700; white-space: nowrap;
+  span { color: var(--muted); font-weight: 400; }
+  .trocar { color: var(--gold); font-weight: 400; font-size: .72rem; margin-left: 2px; }
+  &:hover .trocar { text-decoration: underline; }
+}
+.escolha {
+  text-align: center; padding-top: 50px;
+  h2 { margin-bottom: 8px; }
+}
+.sistemas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 26px; }
+.sistema-card {
+  width: 240px; min-height: 120px; display: flex; flex-direction: column; justify-content: center; gap: 8px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; cursor: pointer; padding: 18px;
+  transition: border-color .15s, transform .15s;
+  .sistema-nome { font-size: 1.3rem; font-weight: 700; color: var(--text); }
+  small { color: var(--muted); }
+  &:hover { border-color: var(--red); transform: translateY(-2px); .sistema-nome { color: var(--gold); } }
+}
+@media (max-width: 600px) {
+  .topbar-row .ficha-select { order: 3; flex: 1 1 100%; max-width: none; }
+}

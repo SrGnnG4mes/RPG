@@ -11,6 +11,7 @@
     <label><input type="checkbox" [ngModel]="store.config().stressDano" (ngModelChange)="toggleStress('stressDano', $event)" /> Stress no dano</label>
   </div>
 
+  @if (sistema()?.passivasDano) {
   <details class="passivas">
     <summary>Passivas de dano (% no resultado final)</summary>
     <div class="passivas-campos">
@@ -25,6 +26,7 @@
     </div>
     <p class="muted small">Vale para as armas da mochila e para as rolagens que usam Ataque CC / Ataque LA.</p>
   </details>
+  }
 
   @if (carga(); as c) {
     @if (c.excesso > 0) {
@@ -55,6 +57,9 @@
           }
         </div>
       }
+    }
+    @if (!busca() && !lista().length) {
+      <p class="muted small">Nenhuma rolagem ainda. Crie as suas em <b>Editar fórmulas</b> → <b>+ Rolagem</b>.</p>
     }
     @if (busca() && !fav().length && !grupos().length) {
       <p class="muted small">Nenhuma rolagem encontrada para "{{ busca() }}".</p>
@@ -107,6 +112,7 @@
               </div>
             }
 
+            @if (atributos.length) {
             <p class="muted small">Atributos da ficha (toque para incluir ou tirar):</p>
             <div class="chips">
               @for (a of atributos; track a.token) {
@@ -115,6 +121,9 @@
                 </button>
               }
             </div>
+            } @else {
+            <p class="muted small">Monte a rolagem com dados e números (ex.: 2d6, 10) e, se quiser, um % no resultado final.</p>
+            }
             <div class="extra">
               <input #extra placeholder="Número ou dado" (keydown.enter)="addExtra(f, extra)" />
               <button class="btn small" (click)="addExtra(f, extra)">+ Adicionar</button>
@@ -162,6 +171,7 @@
       <button class="btn ghost" (click)="cancelar()">Cancelar</button>
       <button class="btn gold" (click)="salvar()">Salvar</button>
     </div>
+    @if (tokens().length) {
     <details class="tokens">
       <summary>Tokens (para escrever à mão)</summary>
       <p class="muted small">
@@ -174,6 +184,7 @@
         }
       </ul>
     </details>
+    }
   }
   <ng-template #pesquisa>
     <div class="busca">

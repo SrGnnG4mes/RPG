@@ -7,7 +7,7 @@ import {
   ATRIBUTOS, Arredondar, ModoStress, Montagem, Termo, explicarPercentual, lerFormula, montagemVazia,
   montarFormula, normalizarDado,
 } from '../core/formula-builder';
-import { AppConfig, DEFAULT_FORMULAS, Formula } from '../core/models';
+import { AppConfig, Formula } from '../core/models';
 import { GRUPOS, Rolagem, carga, formulaComPassivas, pctPassivas, rolagens, tokensComConfig } from '../core/rolagens';
 import { UiService } from '../core/ui.service';
 
@@ -26,7 +26,9 @@ export class RolagensComponent {
   readonly editando = signal(false);
   rascunho: Rascunho[] = [];
 
-  readonly atributos = ATRIBUTOS;
+  /** atributos do RPG escolhido para o montador */
+  get atributos(): typeof ATRIBUTOS { return this.store.sistema()?.atributos ?? []; }
+  readonly sistema = this.store.sistema;
   readonly modosStress: { v: ModoStress; nome: string }[] = [
     { v: 'nenhum', nome: 'Sem Stress' }, { v: 'teste', nome: '− nos testes' }, { v: 'dano', nome: '+ no dano' },
   ];
@@ -37,7 +39,7 @@ export class RolagensComponent {
   readonly lista = computed(() => {
     this.store.rev();
     const s = this.store.sheet;
-    return s ? rolagens(s, this.store.mochila, this.store.config()) : [];
+    return s ? rolagens(s, this.store.mochila, this.store.config(), this.store.sistema()?.armasNoRoll ?? false) : [];
   });
 
   // ----- pesquisa -----
@@ -81,7 +83,7 @@ export class RolagensComponent {
   });
   readonly tokens = computed(() => {
     const t = this.valores();
-    return t ? TOKEN_NAMES.map(k => ({ k, v: t[k] || '0' })) : [];
+    return t && this.atributos.length ? TOKEN_NAMES.map(k => ({ k, v: t[k] || '0' })) : [];
   });
   valor(token: string): string { return this.valores()?.[token as keyof Tokens] || '0'; }
 
@@ -132,7 +134,7 @@ export class RolagensComponent {
   }
   padrao(): void {
     if (confirm('Restaurar as fórmulas padrão? As suas fórmulas personalizadas serão substituídas.')) {
-      this.rascunho = DEFAULT_FORMULAS.map(f => this.paraRascunho(f));
+      this.rascunho = (this.store.sistema()?.formulasPadrao ?? []).map(f => this.paraRascunho(f));
     }
   }
   salvar(): void {

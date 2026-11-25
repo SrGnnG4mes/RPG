@@ -197,7 +197,9 @@ export function splitGosta(value: string): string[] {
 export function joinGosta(itens: string[], original: string): string {
   const lead = original.match(/^\s*/)![0];
   const trail = original.trim() ? original.match(/\s*$/)![0] : lead;
-  const corpo = itens.map(s => s.replace(/\//g, '-').trim()).filter(Boolean).join(' / ');
+  // mantém o estilo do original: "a / b" ou "a/b"
+  const sep = original.includes('/') && !/\s\/|\/\s/.test(original) ? '/' : ' / ';
+  const corpo = itens.map(s => s.replace(/\//g, '-').trim()).filter(Boolean).join(sep);
   return corpo ? lead + corpo + trail : original.trim() ? '' : original;
 }
 
@@ -253,8 +255,9 @@ export function applyAuto(sheet: StatusSheet): void {
   if (refl && ec && el && ec.kind === 'dice' && el.kind === 'dice' && (ec.dirty || el.dirty)) setAuto(refl, '+' + Math.floor((ec.die! + el.die!) / 10));
 }
 
-export function serializeStatus(sheet: StatusSheet): string {
-  applyAuto(sheet);
+/** `auto` aplica as regras automáticas do RPG Dark antes de escrever. */
+export function serializeStatus(sheet: StatusSheet, auto = true): string {
+  if (auto) applyAuto(sheet);
   const lines = sheet.lines.slice();
   sheet.fields.forEach(f => { if (f.dirty) writeField(lines, f); });
   const out: string[] = [];
@@ -353,14 +356,19 @@ export function parseMochila(text: string): Mochila {
   let sec: MochilaSection = { header: '', title: '(início)', level: 0, items: [] };
   sections.push(sec);
   let item: MochilaItem | null = null;
+  let antesVazia = false; // linha anterior em branco
   lines.forEach(line => {
     let m: RegExpMatchArray | null;
+    const vazia = !line.trim();
+    const anterior = antesVazia;
+    antesVazia = vazia;
     if ((m = line.match(MRE.main))) { sec = { header: line, title: m[1], level: 1, items: [] }; sections.push(sec); item = null; return; }
     if ((m = line.match(MRE.sub))) { sec = { header: line, title: m[1], level: 2, items: [] }; sections.push(sec); item = null; return; }
     if (MRE.conn.test(line)) return;
-    if (!line.trim()) return;
+    if (vazia) return;
     if ((m = line.match(MRE.attr)) && item) { item.attrs.push({ pre: m[1], key: m[2].trim(), value: m[3] }); return; }
-    if (/^\s/.test(line) && item) { item.notes.push(line); return; }
+    // linha indentada logo abaixo do item = nota; depois de linha em branco = item novo (indentado)
+    if (/^\s/.test(line) && item && !anterior) { item.notes.push(line); return; }
     item = { name: line.trim(), attrs: [], notes: [] };
     sec.items.push(item);
   });

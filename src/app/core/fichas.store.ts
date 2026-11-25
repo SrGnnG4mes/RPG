@@ -1,17 +1,19 @@
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Unsubscribe } from 'firebase/firestore';
-import {
-  Mochila, StatusSheet, applyAuto, decode, detectType, norm, parseMochila, parseStatus,
-  serializeMochila, serializeStatus,
-} from './ficha-parser.service';
+import { Mochila, StatusSheet, decode, detectType, norm, parseMochila, serializeMochila } from './ficha-parser.service';
 import { FirebaseService, RemoteFicha } from './firebase.service';
 import { AppConfig, DEFAULT_CONFIG, FichaDoc } from './models';
-import { mochilaTemplate, statusTemplate } from './templates';
+import { Sistema, SistemaId, sistemaPorId } from './sistemas';
+import { mochilaTemplate } from './templates';
 
-const LS_FICHAS = 'rpg.fichas';
-const LS_CONFIG = 'rpg.config';
-const LS_ATUAL = 'rpg.atual';
+const LS_SISTEMA = 'rpg.sistema';
 const SAVE_DELAY = 800;
+
+/** Chaves do localStorage por RPG (as do RPG Dark são as originais). */
+const ls = (sistema: SistemaId) => {
+  const p = sistema === 'dark' ? 'rpg.' : `rpg.${sistema}.`;
+  return { fichas: p + 'fichas', config: p + 'config', atual: p + 'atual' };
+};
 
 export type SyncState = 'local' | 'carregando' | 'salvando' | 'salvo' | 'pendente' | 'erro';
 
@@ -29,19 +31,19 @@ function lsSet(key: string, value: unknown): void {
 function lsDel(key: string): void {
   try { localStorage.removeItem(key); } catch { /* idem */ }
 }
-/** Junta a config salva com os padrões; fórmulas salvas pelo usuário nunca são alteradas. */
-const comPadrao = (p: Partial<AppConfig>): AppConfig => ({ ...DEFAULT_CONFIG, ...p });
 const byNome = (a: FichaDoc, b: FichaDoc) => a.nome.localeCompare(b.nome, 'pt-BR');
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 
 /**
- * Estado das fichas: lista, ficha aberta (já interpretada) e persistência
+ * Estado das fichas do RPG escolhido: lista, ficha aberta (já interpretada) e persistência
  * (Firestore quando logado, localStorage quando não), com salvamento em debounce.
+ * Cada RPG tem fichas e configurações separadas.
  */
 @Injectable({ providedIn: 'root' })
 export class FichasStore {
   private fb = inject(FirebaseService);
 
+  readonly sistema = signal<Sistema | null>(sistemaPorId(lsGet<string | null>(LS_SISTEMA, null)));
   readonly fichas = signal<FichaDoc[]>([]);
   readonly currentId = signal<string | null>(null);
   readonly config = signal<AppConfig>(DEFAULT_CONFIG);
@@ -54,10 +56,13 @@ export class FichasStore {
   mochila: Mochila | null = null;
 
   private uid: string | null = null;
+  private iniciado = false;
   private unsub: Unsubscribe | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private lastSynced = { status: '', mochila: '' };
   private firstSnapshot = true;
+  /** evita que um carregamento antigo (troca rápida de RPG/conta) sobrescreva o atual */
+  private geracao = 0;
 
   constructor() {
     if (this.fb.enabled) {
@@ -65,10 +70,18 @@ export class FichasStore {
       effect(() => {
         const loading = this.fb.authLoading();
         const uid = this.fb.user()?.uid ?? null;
-        if (!loading) untracked(() => this.onUser(uid));
+        if (loading) return;
+        untracked(() => {
+          if (this.iniciado && uid === this.uid) return;
+          this.iniciado = true;
+          this.flush();
+          this.uid = uid;
+          this.carregar();
+        });
       });
     } else {
-      this.loadLocal();
+      this.iniciado = true;
+      this.carregar();
     }
     if (typeof window !== 'undefined') {
       window.addEventListener('beforeunload', () => this.flush());
@@ -78,59 +91,76 @@ export class FichasStore {
 
   get loggedIn(): boolean { return !!this.uid; }
 
-  // ---------- modo local / nuvem ----------
-  private loadLocal(): void {
-    this.uid = null;
+  private comPadrao(p: Partial<AppConfig>): AppConfig {
+    return { ...DEFAULT_CONFIG, formulas: this.sistema()?.formulasPadrao ?? [], ...p };
+  }
+
+  // ---------- escolha do RPG ----------
+  escolherSistema(id: SistemaId | null): void {
+    if (id === (this.sistema()?.id ?? null)) return;
+    this.flush();
+    this.sistema.set(sistemaPorId(id));
+    if (id) lsSet(LS_SISTEMA, id); else lsDel(LS_SISTEMA);
+    if (this.iniciado) this.carregar();
+  }
+
+  // ---------- carregar (local ou nuvem) ----------
+  private carregar(): void {
+    const g = ++this.geracao;
+    this.unsub?.();
+    this.unsub = null;
+    this.openFicha(null);
+    this.fichas.set([]);
+    const s = this.sistema();
+    if (!s) { this.sync.set(this.uid ? 'salvo' : 'local'); return; }
+    if (this.uid) this.carregarNuvem(this.uid, s, g);
+    else this.carregarLocal(s);
+  }
+
+  private carregarLocal(s: Sistema): void {
+    const k = ls(s.id);
     this.sync.set('local');
-    this.fichas.set(lsGet<FichaDoc[]>(LS_FICHAS, []).sort(byNome));
-    this.config.set(comPadrao(lsGet<Partial<AppConfig>>(LS_CONFIG, {})));
-    const want = lsGet<string | null>(LS_ATUAL, null);
+    this.fichas.set(lsGet<FichaDoc[]>(k.fichas, []).sort(byNome));
+    this.config.set(this.comPadrao(lsGet<Partial<AppConfig>>(k.config, {})));
+    const want = lsGet<string | null>(k.atual, null);
     this.openFicha(this.fichas().find(f => f.id === want)?.id ?? this.fichas()[0]?.id ?? null);
   }
 
-  private async onUser(uid: string | null): Promise<void> {
-    if (uid === this.uid && (uid || this.sync() === 'local')) return;
-    this.flush();
-    this.unsub?.();
-    this.unsub = null;
-    if (!uid) { this.loadLocal(); return; }
-
-    this.uid = uid;
+  private async carregarNuvem(uid: string, s: Sistema, g: number): Promise<void> {
+    const k = ls(s.id);
+    const base = FirebaseService.base(uid, s.id);
     this.sync.set('carregando');
-    this.openFicha(null);
-    this.fichas.set([]);
     try {
-      // fichas criadas sem login sobem para a conta
-      const local = lsGet<FichaDoc[]>(LS_FICHAS, []);
+      // fichas criadas sem login (neste RPG) sobem para a conta
+      const local = lsGet<FichaDoc[]>(k.fichas, []);
       if (local.length) {
-        await this.fb.saveFichas(uid, local);
-        lsDel(LS_FICHAS);
+        await this.fb.saveFichas(base, local);
+        lsDel(k.fichas);
       }
-      const remoteCfg = await this.fb.loadConfig(uid);
+      const remoteCfg = await this.fb.loadConfig(base);
+      if (g !== this.geracao) return;
       if (remoteCfg) {
-        this.config.set(comPadrao(remoteCfg));
+        this.config.set(this.comPadrao(remoteCfg));
       } else {
-        const localCfg = lsGet<Partial<AppConfig> | null>(LS_CONFIG, null);
-        if (localCfg) {
-          this.config.set(comPadrao(localCfg));
-          await this.fb.saveConfig(uid, this.config());
-        } else {
-          this.config.set(DEFAULT_CONFIG);
-        }
+        const localCfg = lsGet<Partial<AppConfig> | null>(k.config, null);
+        this.config.set(this.comPadrao(localCfg ?? {}));
+        if (localCfg) await this.fb.saveConfig(base, this.config());
       }
     } catch (e) {
       console.error(e);
       this.sync.set('erro');
     }
-    if (this.uid !== uid) return; // deslogou no meio
+    if (g !== this.geracao) return; // trocou de RPG ou de conta no meio
     this.firstSnapshot = true;
-    this.unsub = this.fb.watchFichas(uid, list => this.onRemote(list), e => {
+    this.unsub = this.fb.watchFichas(base, list => this.onRemote(list), e => {
       console.error(e);
       this.sync.set('erro');
     });
   }
 
   private onRemote(list: RemoteFicha[]): void {
+    const s = this.sistema();
+    if (!s) return;
     const curId = this.currentId();
     const editing = !!this.timer;
     const mine = this.current();
@@ -141,7 +171,7 @@ export class FichasStore {
 
     if (this.firstSnapshot) {
       this.firstSnapshot = false;
-      const want = lsGet<string | null>(LS_ATUAL, null);
+      const want = lsGet<string | null>(ls(s.id).atual, null);
       this.openFicha(merged.find(f => f.id === want)?.id ?? merged[0]?.id ?? null);
       return;
     }
@@ -164,18 +194,19 @@ export class FichasStore {
   }
 
   private openFicha(id: string | null): void {
-    const f = this.fichas().find(x => x.id === id) ?? null;
+    const s = this.sistema();
+    const f = s ? this.fichas().find(x => x.id === id) ?? null : null;
     this.currentId.set(f?.id ?? null);
-    this.sheet = f ? parseStatus(f.status) : null;
+    this.sheet = f && s ? s.parseStatus(f.status) : null;
     this.mochila = f ? parseMochila(f.mochila) : null;
     this.lastSynced = { status: f?.status ?? '', mochila: f?.mochila ?? '' };
-    if (f) lsSet(LS_ATUAL, f.id);
+    if (f && s) lsSet(ls(s.id).atual, f.id);
     this.rev.update(v => v + 1);
   }
 
   /** Chame após qualquer edição em `sheet` ou `mochila`. */
   touch(): void {
-    if (this.sheet) applyAuto(this.sheet);
+    if (this.sheet) this.sistema()?.aplicarRegras(this.sheet);
     this.rev.update(v => v + 1);
     if (this.timer) clearTimeout(this.timer);
     if (this.uid) this.sync.set('salvando');
@@ -190,9 +221,10 @@ export class FichasStore {
   }
 
   private persistCurrent(): void {
+    const s = this.sistema();
     const cur = this.current();
-    if (!cur || !this.sheet || !this.mochila) return;
-    const status = serializeStatus(this.sheet);
+    if (!s || !cur || !this.sheet || !this.mochila) return;
+    const status = s.serializeStatus(this.sheet);
     const mochila = serializeMochila(this.mochila);
     const nome = this.sheet.fields.find(f => f.id === 'id_nome')?.value.trim() || cur.nome;
     const updated: FichaDoc = { ...cur, nome, status, mochila };
@@ -202,53 +234,67 @@ export class FichasStore {
   }
 
   private persist(changed: FichaDoc[]): void {
+    const s = this.sistema();
+    if (!s) return;
     if (this.uid) {
+      const base = FirebaseService.base(this.uid, s.id);
       this.sync.set('salvando');
-      const p = changed.length === 1 ? this.fb.saveFicha(this.uid, changed[0]) : this.fb.saveFichas(this.uid, changed);
+      const p = changed.length === 1 ? this.fb.saveFicha(base, changed[0]) : this.fb.saveFichas(base, changed);
       p.then(() => this.sync.set('salvo')).catch(e => { console.error(e); this.sync.set('erro'); });
     } else {
-      lsSet(LS_FICHAS, this.fichas());
+      lsSet(ls(s.id).fichas, this.fichas());
     }
   }
 
   // ---------- ações ----------
   novaFicha(nome: string): void {
+    const s = this.sistema();
+    if (!s) return;
     this.flush();
-    const f: FichaDoc = { id: newId(), nome, status: statusTemplate(nome), mochila: mochilaTemplate() };
+    const f: FichaDoc = { id: newId(), nome, status: s.statusTemplate(nome), mochila: mochilaTemplate() };
     this.fichas.update(l => [...l, f].sort(byNome));
     this.persist([f]);
     this.openFicha(f.id);
   }
 
   async apagar(id: string): Promise<void> {
+    const s = this.sistema();
+    if (!s) return;
     if (this.currentId() === id && this.timer) { clearTimeout(this.timer); this.timer = null; }
     this.fichas.update(l => l.filter(f => f.id !== id));
     if (this.uid) {
-      this.fb.deleteFicha(this.uid, id).catch(e => { console.error(e); this.sync.set('erro'); });
+      this.fb.deleteFicha(FirebaseService.base(this.uid, s.id), id).catch(e => { console.error(e); this.sync.set('erro'); });
     } else {
-      lsSet(LS_FICHAS, this.fichas());
+      lsSet(ls(s.id).fichas, this.fichas());
     }
     if (this.currentId() === id) this.openFicha(this.fichas()[0]?.id ?? null);
   }
 
-  /** Importa vários Status_X.txt / Mochila_X.txt; agrupa por nome do arquivo. */
+  /**
+   * Importa vários arquivos de Status e Mochila do RPG escolhido e agrupa pelo nome:
+   * "Status_Nome.txt", "STATUS.Nome.txt", "Nome_Status.txt", "Mochila.Nome.txt"...
+   */
   async importar(files: File[]): Promise<string> {
+    const s = this.sistema();
+    if (!s) return 'Escolha um RPG primeiro';
     this.flush();
     const grupos = new Map<string, { nome: string; status?: string; mochila?: string }>();
     const ignorados: string[] = [];
     for (const file of files) {
       const text = decode(new Uint8Array(await file.arrayBuffer()));
-      const tipo = detectType(text) ?? (/mochila/i.test(file.name) ? 'mochila' : /status/i.test(file.name) ? 'status' : null);
+      const tipo = detectType(text) === 'mochila' ? 'mochila'
+        : s.ehStatus(text) ? 'status'
+        : /mochila/i.test(file.name) ? 'mochila' : /status/i.test(file.name) ? 'status' : null;
       if (!tipo) { ignorados.push(file.name); continue; }
-      let nome = file.name.replace(/\.txt$/i, '').replace(/^(status|mochila)[\s_-]*/i, '').trim();
-      if (tipo === 'status') {
-        const sheet = parseStatus(text);
-        nome = nome || sheet.fields.find(f => f.id === 'id_nome')?.value.trim() || 'Sem nome';
-      }
+      let nome = file.name.replace(/\.txt$/i, '')
+        .replace(/^(status|mochila)[\s_.-]*/i, '')
+        .replace(/[\s_.-]*(status|mochila)$/i, '')
+        .trim();
+      if (tipo === 'status' && !nome) nome = s.parseStatus(text).fields.find(f => f.id === 'id_nome')?.value.trim() ?? '';
       nome = nome || 'Sem nome';
       const key = norm(nome);
       const g = grupos.get(key) ?? { nome };
-      if (tipo === 'status') g.status = serializeStatus(parseStatus(text));
+      if (tipo === 'status') g.status = s.serializeStatus(s.parseStatus(text));
       else g.mochila = serializeMochila(parseMochila(text));
       grupos.set(key, g);
     }
@@ -259,7 +305,7 @@ export class FichasStore {
       const idx = list.findIndex(f => norm(f.nome) === key);
       const base: FichaDoc = idx >= 0
         ? list[idx]
-        : { id: newId(), nome: g.nome, status: statusTemplate(g.nome), mochila: mochilaTemplate() };
+        : { id: newId(), nome: g.nome, status: s.statusTemplate(g.nome), mochila: mochilaTemplate() };
       const f: FichaDoc = { ...base, status: g.status ?? base.status, mochila: g.mochila ?? base.mochila };
       if (idx >= 0) list[idx] = f; else list.push(f);
       changed.push(f);
@@ -270,26 +316,29 @@ export class FichasStore {
       this.persist(changed);
       this.openFicha(changed[changed.length - 1].id);
     }
-    const partes = [`${changed.length} ficha(s) importada(s)`];
+    const partes = [`${changed.length} ficha(s) importada(s) no ${s.nome}`];
     if (ignorados.length) partes.push(`ignorado(s): ${ignorados.join(', ')}`);
     return partes.join(' · ');
   }
 
   exportar(tipo: 'status' | 'mochila'): { nome: string; texto: string } | null {
+    const s = this.sistema();
     this.flush();
     const cur = this.current();
-    if (!cur || !this.sheet || !this.mochila) return null;
-    const texto = tipo === 'status' ? serializeStatus(this.sheet) : serializeMochila(this.mochila);
+    if (!s || !cur || !this.sheet || !this.mochila) return null;
+    const texto = tipo === 'status' ? s.serializeStatus(this.sheet) : serializeMochila(this.mochila);
     const base = cur.nome.replace(/[\\/:*?"<>|]+/g, '').trim() || 'Ficha';
-    return { nome: `${tipo === 'status' ? 'Status' : 'Mochila'}_${base}.txt`, texto };
+    return { nome: s.arquivo(tipo, base), texto };
   }
 
   setConfig(cfg: AppConfig): void {
+    const s = this.sistema();
+    if (!s) return;
     this.config.set(cfg);
     if (this.uid) {
-      this.fb.saveConfig(this.uid, cfg).catch(e => { console.error(e); this.sync.set('erro'); });
+      this.fb.saveConfig(FirebaseService.base(this.uid, s.id), cfg).catch(e => { console.error(e); this.sync.set('erro'); });
     } else {
-      lsSet(LS_CONFIG, cfg);
+      lsSet(ls(s.id).config, cfg);
     }
   }
 }
